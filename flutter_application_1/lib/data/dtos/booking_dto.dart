@@ -8,6 +8,7 @@ class BookingDTO {
     return Booking(
       id: id,
       orderId: map['orderId'] as String,
+      userId: map['userId'] as String,
       bikeId: map['bikeId'] as String,
       stationId: map['stationId'] as String,
       slotId: map['slotId'] as String,
@@ -20,6 +21,7 @@ class BookingDTO {
   static Map<String, dynamic> toMap(Booking booking) {
     return {
       'orderId': booking.orderId,
+      'userId': booking.userId,
       'bikeId': booking.bikeId,
       'stationId': booking.stationId,
       'slotId': booking.slotId,

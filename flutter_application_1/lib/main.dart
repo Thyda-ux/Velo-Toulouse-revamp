@@ -1,37 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+import 'core/theme/app_theme.dart';
 import 'data/firestore_seeder.dart';
-import 'pages/map_page.dart';
+import 'firebase_options.dart';
+import 'ui/screens/map/map_view.dart';
+
+const bool _seedOnBoot = bool.fromEnvironment('SEED_FIRESTORE');
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Clear old data and re-seed with updated bike codes (BXX format)
-  // TODO: switch back to seed() once the re-seed is done
-  await FirestoreSeeder().clearAndReseed();
+  if (_seedOnBoot) {
+    await FirestoreSeeder().seed();
+  }
 
-  runApp(const MyApp());
+  runApp(const VeloApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class VeloApp extends StatelessWidget {
+  const VeloApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Velo Phnom Penh',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFE8491B),
-        ),
-        useMaterial3: true,
-      ),
-      home: const MapPage(),
+      theme: AppTheme.light(),
+      home: const MapView(),
     );
   }
 }

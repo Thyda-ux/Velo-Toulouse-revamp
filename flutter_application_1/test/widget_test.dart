@@ -1,30 +1,26 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:flutter_application_1/main.dart';
+import 'package:flutter_application_1/core/theme/app_theme.dart';
+import 'package:flutter_application_1/data/repositories/mock_user_repository.dart';
+import 'package:flutter_application_1/ui/screens/pass_selection/pass_selection_view.dart';
+import 'package:flutter_application_1/ui/screens/pass_selection/pass_selection_viewmodel.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Pass selection screen renders all three plans',
+      (WidgetTester tester) async {
+    PassSelectionViewModel(
+      userId: 'mock-user',
+      userRepo: MockUserRepository(),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.light(),
+      home: const PassSelectionView(userId: 'mock-user'),
+    ));
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Daily Pass'), findsOneWidget);
+    expect(find.text('Monthly Pass'), findsOneWidget);
+    expect(find.text('Annual Pass'), findsOneWidget);
   });
 }
