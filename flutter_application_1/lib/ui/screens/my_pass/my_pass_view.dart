@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -7,67 +8,57 @@ import '../../../models/user_plan.dart';
 import '../pass_selection/pass_selection_view.dart';
 import 'my_pass_viewmodel.dart';
 
-class MyPassView extends StatefulWidget {
+class MyPassView extends StatelessWidget {
   const MyPassView({super.key});
 
   @override
-  State<MyPassView> createState() => _MyPassViewState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => MyPassViewModel()..load(),
+      child: const _MyPassBody(),
+    );
+  }
 }
 
-class _MyPassViewState extends State<MyPassView> {
-  late final MyPassViewModel _vm;
+class _MyPassBody extends StatelessWidget {
+  const _MyPassBody();
 
-  @override
-  void initState() {
-    super.initState();
-    _vm = MyPassViewModel();
-    _vm.addListener(_onChanged);
-    _vm.load();
-  }
-
-  @override
-  void dispose() {
-    _vm.removeListener(_onChanged);
-    _vm.dispose();
-    super.dispose();
-  }
-
-  void _onChanged() => setState(() {});
-
-  Future<void> _openPassSelection() async {
-    if (_vm.user == null) return;
+  Future<void> _openPassSelection(
+    BuildContext context,
+    MyPassViewModel vm,
+  ) async {
+    if (vm.user == null) return;
     final purchased = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (_) => PassSelectionView(userId: _vm.user!.id),
-      ),
+      MaterialPageRoute(builder: (_) => PassSelectionView(userId: vm.user!.id)),
     );
-    if (purchased == true) await _vm.load();
+    if (purchased == true) await vm.load();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('My Pass')),
-      body: _vm.isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.orange),
-            )
-          : _vm.errorMessage != null
-              ? _ErrorState(message: _vm.errorMessage!, onRetry: _vm.load)
-              : _buildBody(),
+    return Consumer<MyPassViewModel>(
+      builder: (context, vm, _) {
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          appBar: AppBar(title: const Text('My Pass')),
+          body: vm.isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.orange),
+                )
+              : vm.errorMessage != null
+              ? _ErrorState(message: vm.errorMessage!, onRetry: vm.load)
+              : vm.hasActivePlan
+              ? _ActivePassContent(
+                  plan: vm.activePlan!,
+                  onTryBuyAnother: () => _openPassSelection(context, vm),
+                )
+              : _NoPassContent(
+                  onBuyPass: () => _openPassSelection(context, vm),
+                ),
+        );
+      },
     );
-  }
-
-  Widget _buildBody() {
-    if (_vm.hasActivePlan) {
-      return _ActivePassContent(
-        plan: _vm.activePlan!,
-        onTryBuyAnother: _openPassSelection,
-      );
-    }
-    return _NoPassContent(onBuyPass: _openPassSelection);
   }
 }
 
@@ -75,10 +66,7 @@ class _ActivePassContent extends StatelessWidget {
   final UserPlan plan;
   final VoidCallback onTryBuyAnother;
 
-  const _ActivePassContent({
-    required this.plan,
-    required this.onTryBuyAnother,
-  });
+  const _ActivePassContent({required this.plan, required this.onTryBuyAnother});
 
   String _formatDate(DateTime d) {
     final day = d.day.toString().padLeft(2, '0');
@@ -87,10 +75,10 @@ class _ActivePassContent extends StatelessWidget {
   }
 
   String _labelFor(PlanType type) => switch (type) {
-        PlanType.daily => 'Daily',
-        PlanType.monthly => 'Monthly',
-        PlanType.annual => 'Annual',
-      };
+    PlanType.daily => 'Daily',
+    PlanType.monthly => 'Monthly',
+    PlanType.annual => 'Annual',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -143,10 +131,7 @@ class _ActivePassContent extends StatelessWidget {
               const SizedBox(height: AppSpacing.xs),
               Text(
                 '$daysLeft days remaining',
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.white,
-                ),
+                style: const TextStyle(fontSize: 14, color: Colors.white),
               ),
             ],
           ),
@@ -154,11 +139,9 @@ class _ActivePassContent extends StatelessWidget {
         AppSpacing.gapLg,
         _DetailRow(label: 'Plan type', value: '$typeLabel pass'),
         const Divider(height: 1, color: AppColors.divider),
-        _DetailRow(
-            label: 'Started on', value: _formatDate(plan.startDate)),
+        _DetailRow(label: 'Started on', value: _formatDate(plan.startDate)),
         const Divider(height: 1, color: AppColors.divider),
-        _DetailRow(
-            label: 'Expires on', value: _formatDate(plan.endDate)),
+        _DetailRow(label: 'Expires on', value: _formatDate(plan.endDate)),
         const Divider(height: 1, color: AppColors.divider),
         _DetailRow(
           label: 'Days remaining',
@@ -176,8 +159,7 @@ class _ActivePassContent extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.lock_outline,
-                  color: AppColors.orange, size: 20),
+              const Icon(Icons.lock_outline, color: AppColors.orange, size: 20),
               const SizedBox(width: AppSpacing.md),
               const Expanded(
                 child: Text(
@@ -194,8 +176,9 @@ class _ActivePassContent extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.orange,
             side: const BorderSide(color: AppColors.orange),
-            shape:
-                const RoundedRectangleBorder(borderRadius: AppSpacing.radiusMd),
+            shape: const RoundedRectangleBorder(
+              borderRadius: AppSpacing.radiusMd,
+            ),
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
           ),
           child: const Text('View Other Plans'),
@@ -210,11 +193,7 @@ class _DetailRow extends StatelessWidget {
   final String value;
   final Color? valueColor;
 
-  const _DetailRow({
-    required this.label,
-    required this.value,
-    this.valueColor,
-  });
+  const _DetailRow({required this.label, required this.value, this.valueColor});
 
   @override
   Widget build(BuildContext context) {
@@ -223,10 +202,7 @@ class _DetailRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(child: Text(label, style: AppTextStyles.bodyMd)),
-          Text(
-            value,
-            style: AppTextStyles.titleMd.copyWith(color: valueColor),
-          ),
+          Text(value, style: AppTextStyles.titleMd.copyWith(color: valueColor)),
         ],
       ),
     );
@@ -246,8 +222,11 @@ class _NoPassContent extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AppSpacing.gapXl,
-          const Icon(Icons.credit_card_off_outlined,
-              size: 64, color: AppColors.textMuted),
+          const Icon(
+            Icons.credit_card_off_outlined,
+            size: 64,
+            color: AppColors.textMuted,
+          ),
           AppSpacing.gapLg,
           const Text(
             'No Active Pass',
@@ -287,8 +266,11 @@ class _ErrorState extends StatelessWidget {
           children: [
             const Icon(Icons.error_outline, color: AppColors.red, size: 40),
             AppSpacing.gapMd,
-            Text(message,
-                textAlign: TextAlign.center, style: AppTextStyles.bodyMd),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodyMd,
+            ),
             AppSpacing.gapLg,
             ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
           ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -10,7 +11,7 @@ import '../../../models/user.dart';
 import '../pass_selection/pass_selection_view.dart';
 import 'booking_viewmodel.dart';
 
-class BookingView extends StatefulWidget {
+class BookingView extends StatelessWidget {
   final BikeStation station;
   final Slot slot;
   final Bike bike;
@@ -23,169 +24,168 @@ class BookingView extends StatefulWidget {
   });
 
   @override
-  State<BookingView> createState() => _BookingViewState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) =>
+          BookingViewModel(station: station, slot: slot, bike: bike)
+            ..loadUser(),
+      child: _BookingBody(station: station, slot: slot, bike: bike),
+    );
+  }
 }
 
-class _BookingViewState extends State<BookingView> {
-  late final BookingViewModel _vm;
+class _BookingBody extends StatelessWidget {
+  final BikeStation station;
+  final Slot slot;
+  final Bike bike;
 
-  @override
-  void initState() {
-    super.initState();
-    _vm = BookingViewModel(
-      station: widget.station,
-      slot: widget.slot,
-      bike: widget.bike,
-    );
-    _vm.addListener(_onChanged);
-    _vm.loadUser();
-  }
+  const _BookingBody({
+    required this.station,
+    required this.slot,
+    required this.bike,
+  });
 
-  @override
-  void dispose() {
-    _vm.removeListener(_onChanged);
-    _vm.dispose();
-    super.dispose();
-  }
-
-  void _onChanged() => setState(() {});
-
-  Future<void> _onConfirm() async {
-    final orderId = await _vm.confirmBooking();
-    if (!mounted) return;
+  Future<void> _onConfirm(BuildContext context, BookingViewModel vm) async {
+    final orderId = await vm.confirmBooking();
+    if (!context.mounted) return;
 
     if (orderId != null) {
       await showDialog(
         context: context,
         builder: (_) => _BookingSuccessDialog(
-          bikeCode: widget.bike.code,
-          stationName: widget.station.name,
+          bikeCode: bike.code,
+          stationName: station.name,
         ),
       );
-      if (!mounted) return;
+      if (!context.mounted) return;
       Navigator.of(context)
         ..pop()
         ..pop();
-    } else if (_vm.errorMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_vm.errorMessage!)),
-      );
+    } else if (vm.errorMessage != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(vm.errorMessage!)));
     }
   }
 
-  Future<void> _onBuyPass() async {
-    if (_vm.user == null) return;
+  Future<void> _onBuyPass(BuildContext context, BookingViewModel vm) async {
+    if (vm.user == null) return;
     final purchased = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (_) => PassSelectionView(userId: _vm.user!.id),
-      ),
+      MaterialPageRoute(builder: (_) => PassSelectionView(userId: vm.user!.id)),
     );
     if (purchased == true) {
-      await _vm.loadUser();
+      await vm.loadUser();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Confirm Booking',
-          style: TextStyle(
-            color: AppColors.orange,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        titleSpacing: 0,
-      ),
-      body: _vm.isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.orange),
-            )
-          : _buildBody(),
-    );
-  }
-
-  Widget _buildBody() {
-    return Column(
-      children: [
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.xl,
-              vertical: AppSpacing.lg,
+    return Consumer<BookingViewModel>(
+      builder: (context, vm, _) {
+        return Scaffold(
+          backgroundColor: AppColors.surface,
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.pop(context),
             ),
-            children: [
-              const Text('Booking Summary', style: AppTextStyles.headingLg),
-              const SizedBox(height: AppSpacing.xs),
-              const Text(
-                'Review your selection before confirming',
-                style: AppTextStyles.bodySm,
+            title: const Text(
+              'Confirm Booking',
+              style: TextStyle(
+                color: AppColors.orange,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
               ),
-              AppSpacing.gapXl,
-              _InfoCard(
-                icon: Icons.pedal_bike,
-                label: 'Bike',
-                title: widget.bike.code,
-                subtitle: 'Slot ${widget.slot.slotNumber}',
-              ),
-              AppSpacing.gapMd,
-              _InfoCard(
-                icon: Icons.location_on,
-                label: 'Pickup Station',
-                title: widget.station.name,
-                subtitle: widget.station.address,
-              ),
-              AppSpacing.gapMd,
-              _InfoCard(
-                icon: Icons.access_time,
-                label: 'Booking Time',
-                title: _formatTime(DateTime.now()),
-                subtitle: 'Starts immediately on confirmation',
-              ),
-              AppSpacing.gapXl,
-              const Text('Your Pass', style: AppTextStyles.titleMd),
-              AppSpacing.gapMd,
-              if (_vm.hasActivePlan)
-                _PlanActiveCard(user: _vm.user!)
-              else
-                _NoPlanCard(onBuyPass: _onBuyPass),
-            ],
+            ),
+            titleSpacing: 0,
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.xl,
-            AppSpacing.sm,
-            AppSpacing.xl,
-            AppSpacing.xl,
-          ),
-          child: ElevatedButton(
-            onPressed: _vm.hasActivePlan && !_vm.isSubmitting ? _onConfirm : null,
-            child: _vm.isSubmitting
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2.5,
+          body: vm.isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.orange),
+                )
+              : Column(
+                  children: [
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.xl,
+                          vertical: AppSpacing.lg,
+                        ),
+                        children: [
+                          const Text(
+                            'Booking Summary',
+                            style: AppTextStyles.headingLg,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          const Text(
+                            'Review your selection before confirming',
+                            style: AppTextStyles.bodySm,
+                          ),
+                          AppSpacing.gapXl,
+                          _InfoCard(
+                            icon: Icons.pedal_bike,
+                            label: 'Bike',
+                            title: bike.code,
+                            subtitle: 'Slot ${slot.slotNumber}',
+                          ),
+                          AppSpacing.gapMd,
+                          _InfoCard(
+                            icon: Icons.location_on,
+                            label: 'Pickup Station',
+                            title: station.name,
+                            subtitle: station.address,
+                          ),
+                          AppSpacing.gapMd,
+                          _InfoCard(
+                            icon: Icons.access_time,
+                            label: 'Booking Time',
+                            title: _formatTime(DateTime.now()),
+                            subtitle: 'Starts immediately on confirmation',
+                          ),
+                          AppSpacing.gapXl,
+                          const Text('Your Pass', style: AppTextStyles.titleMd),
+                          AppSpacing.gapMd,
+                          if (vm.hasActivePlan)
+                            _PlanActiveCard(user: vm.user!)
+                          else
+                            _NoPlanCard(
+                              onBuyPass: () => _onBuyPass(context, vm),
+                            ),
+                        ],
+                      ),
                     ),
-                  )
-                : Text(
-                    _vm.hasActivePlan
-                        ? 'Confirm Booking'
-                        : 'Active Pass Required',
-                  ),
-          ),
-        ),
-      ],
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.xl,
+                        AppSpacing.sm,
+                        AppSpacing.xl,
+                        AppSpacing.xl,
+                      ),
+                      child: ElevatedButton(
+                        onPressed: vm.hasActivePlan && !vm.isSubmitting
+                            ? () => _onConfirm(context, vm)
+                            : null,
+                        child: vm.isSubmitting
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.5,
+                                ),
+                              )
+                            : Text(
+                                vm.hasActivePlan
+                                    ? 'Confirm Booking'
+                                    : 'Active Pass Required',
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 
@@ -286,13 +286,9 @@ class _PlanActiveCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '$typeLabel Pass · Active',
-                  style: AppTextStyles.titleMd,
-                ),
+                Text('$typeLabel Pass · Active', style: AppTextStyles.titleMd),
                 const SizedBox(height: 2),
-                Text('$daysLeft days remaining',
-                    style: AppTextStyles.bodySm),
+                Text('$daysLeft days remaining', style: AppTextStyles.bodySm),
               ],
             ),
           ),
@@ -322,8 +318,11 @@ class _NoPlanCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.warning_amber_rounded,
-                  color: AppColors.red, size: 24),
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: AppColors.red,
+                size: 24,
+              ),
               const SizedBox(width: AppSpacing.md),
               const Expanded(
                 child: Column(
@@ -356,9 +355,9 @@ class _NoPlanCard extends StatelessWidget {
                 foregroundColor: AppColors.orange,
                 side: const BorderSide(color: AppColors.orange),
                 shape: const RoundedRectangleBorder(
-                    borderRadius: AppSpacing.radiusMd),
-                padding:
-                    const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  borderRadius: AppSpacing.radiusMd,
+                ),
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
               ),
               child: const Text('Buy a Pass'),
             ),
@@ -397,10 +396,7 @@ class _BookingSuccessDialog extends StatelessWidget {
               child: const Icon(Icons.check, color: Colors.white, size: 36),
             ),
             AppSpacing.gapLg,
-            const Text(
-              'Booking Confirmed',
-              style: AppTextStyles.headingMd,
-            ),
+            const Text('Booking Confirmed', style: AppTextStyles.headingMd),
             AppSpacing.gapSm,
             Text(
               'Bike $bikeCode is reserved for you at $stationName.',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -6,141 +7,145 @@ import '../../../models/enums.dart';
 import '../../../models/user_plan.dart';
 import 'pass_selection_viewmodel.dart';
 
-class PassSelectionView extends StatefulWidget {
+class PassSelectionView extends StatelessWidget {
   final String userId;
-
+  
   const PassSelectionView({super.key, required this.userId});
 
   @override
-  State<PassSelectionView> createState() => _PassSelectionViewState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => PassSelectionViewModel(userId: userId)..load(),
+      child: const _PassSelectionBody(),
+    );
+  }
 }
 
-class _PassSelectionViewState extends State<PassSelectionView> {
-  late final PassSelectionViewModel _vm;
+class _PassSelectionBody extends StatelessWidget {
+  const _PassSelectionBody();
 
-  @override
-  void initState() {
-    super.initState();
-    _vm = PassSelectionViewModel(userId: widget.userId);
-    _vm.addListener(_onChanged);
-    _vm.load();
-  }
-
-  @override
-  void dispose() {
-    _vm.removeListener(_onChanged);
-    _vm.dispose();
-    super.dispose();
-  }
-
-  void _onChanged() => setState(() {});
-
-  Future<void> _onPurchase() async {
-    final ok = await _vm.purchase();
-    if (!mounted) return;
+  Future<void> _onPurchase(
+    BuildContext context,
+    PassSelectionViewModel vm,
+  ) async {
+    final ok = await vm.purchase();
+    if (!context.mounted) return;
     if (ok) {
       Navigator.pop(context, true);
-    } else if (_vm.errorMessage != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(_vm.errorMessage!)));
+    } else if (vm.errorMessage != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(vm.errorMessage!)));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text('Choose a Pass'),
-      ),
-      body: _vm.isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.orange),
-            )
-          : _buildBody(),
-    );
-  }
+    return Consumer<PassSelectionViewModel>(
+      builder: (context, vm, _) {
+        final blocked = vm.isBlocked;
 
-  Widget _buildBody() {
-    final blocked = _vm.isBlocked;
-    return Column(
-      children: [
-        Expanded(
-          child: ListView(
-            padding: AppSpacing.paddingScreen,
-            children: [
-              const Text('Select your pass', style: AppTextStyles.headingLg),
-              const SizedBox(height: AppSpacing.xs),
-              const Text(
-                'Pick the plan that fits your ride. Your pass activates right away.',
-                style: AppTextStyles.bodySm,
-              ),
-              if (blocked) ...[
-                AppSpacing.gapLg,
-                _ActivePassBanner(plan: _vm.currentPlan!),
-              ],
-              AppSpacing.gapXl,
-              _PassCard(
-                type: PlanType.daily,
-                title: 'Daily Pass',
-                price: '\$1',
-                description: '24 hours of unlimited short rides.',
-                selected: _vm.selectedType == PlanType.daily,
-                disabled: blocked,
-                onTap: () => _vm.selectType(PlanType.daily),
-              ),
-              AppSpacing.gapMd,
-              _PassCard(
-                type: PlanType.monthly,
-                title: 'Monthly Pass',
-                price: '\$8',
-                description: '30 days of rides. Best for commuters.',
-                selected: _vm.selectedType == PlanType.monthly,
-                disabled: blocked,
-                onTap: () => _vm.selectType(PlanType.monthly),
-                recommended: true,
-              ),
-              AppSpacing.gapMd,
-              _PassCard(
-                type: PlanType.annual,
-                title: 'Annual Pass',
-                price: '\$60',
-                description: '365 days of rides. Best value.',
-                selected: _vm.selectedType == PlanType.annual,
-                disabled: blocked,
-                onTap: () => _vm.selectType(PlanType.annual),
-              ),
-            ],
+        return Scaffold(
+          backgroundColor: AppColors.surface,
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: const Text('Choose a Pass'),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.xl,
-            AppSpacing.sm,
-            AppSpacing.xl,
-            AppSpacing.xl,
-          ),
-          child: ElevatedButton(
-            onPressed: !blocked && _vm.selectedType != null && !_vm.isSubmitting
-                ? _onPurchase
-                : null,
-            child: _vm.isSubmitting
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2.5,
+          body: vm.isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.orange),
+                )
+              : Column(
+                  children: [
+                    Expanded(
+                      child: ListView(
+                        padding: AppSpacing.paddingScreen,
+                        children: [
+                          const Text(
+                            'Select your pass',
+                            style: AppTextStyles.headingLg,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          const Text(
+                            'Pick the plan that fits your ride. Your pass activates right away.',
+                            style: AppTextStyles.bodySm,
+                          ),
+                          if (blocked) ...[
+                            AppSpacing.gapLg,
+                            _ActivePassBanner(plan: vm.currentPlan!),
+                          ],
+                          AppSpacing.gapXl,
+                          _PassCard(
+                            type: PlanType.daily,
+                            title: 'Daily Pass',
+                            price: '\$1',
+                            description: '24 hours of unlimited short rides.',
+                            selected: vm.selectedType == PlanType.daily,
+                            disabled: blocked,
+                            onTap: () => vm.selectType(PlanType.daily),
+                          ),
+                          AppSpacing.gapMd,
+                          _PassCard(
+                            type: PlanType.monthly,
+                            title: 'Monthly Pass',
+                            price: '\$8',
+                            description:
+                                '30 days of rides. Best for commuters.',
+                            selected: vm.selectedType == PlanType.monthly,
+                            disabled: blocked,
+                            onTap: () => vm.selectType(PlanType.monthly),
+                            recommended: true,
+                          ),
+                          AppSpacing.gapMd,
+                          _PassCard(
+                            type: PlanType.annual,
+                            title: 'Annual Pass',
+                            price: '\$60',
+                            description: '365 days of rides. Best value.',
+                            selected: vm.selectedType == PlanType.annual,
+                            disabled: blocked,
+                            onTap: () => vm.selectType(PlanType.annual),
+                          ),
+                        ],
+                      ),
                     ),
-                  )
-                : Text(blocked ? 'Pass Already Active' : 'Activate Pass'),
-          ),
-        ),
-      ],
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.xl,
+                        AppSpacing.sm,
+                        AppSpacing.xl,
+                        AppSpacing.xl,
+                      ),
+                      child: ElevatedButton(
+                        onPressed:
+                            !blocked &&
+                                vm.selectedType != null &&
+                                !vm.isSubmitting
+                            ? () => _onPurchase(context, vm)
+                            : null,
+                        child: vm.isSubmitting
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.5,
+                                ),
+                              )
+                            : Text(
+                                blocked
+                                    ? 'Pass Already Active'
+                                    : 'Activate Pass',
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 }
@@ -217,13 +222,13 @@ class _PassCard extends StatelessWidget {
     final borderColor = disabled
         ? AppColors.divider
         : selected
-            ? AppColors.orange
-            : AppColors.divider;
+        ? AppColors.orange
+        : AppColors.divider;
     final bgColor = disabled
         ? AppColors.background
         : selected
-            ? AppColors.orange.withValues(alpha: 0.06)
-            : AppColors.surface;
+        ? AppColors.orange.withValues(alpha: 0.06)
+        : AppColors.surface;
 
     return Opacity(
       opacity: disabled ? 0.55 : 1,
@@ -245,9 +250,7 @@ class _PassCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Expanded(
-                    child: Text(title, style: AppTextStyles.headingMd),
-                  ),
+                  Expanded(child: Text(title, style: AppTextStyles.headingMd)),
                   if (recommended && !disabled)
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -256,8 +259,9 @@ class _PassCard extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: AppColors.orange.withValues(alpha: 0.1),
-                        borderRadius:
-                            const BorderRadius.all(Radius.circular(8)),
+                        borderRadius: const BorderRadius.all(
+                          Radius.circular(8),
+                        ),
                       ),
                       child: const Text(
                         'Popular',

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -13,39 +14,34 @@ import '../my_pass/my_pass_view.dart';
 import '../station_detail/station_detail_view.dart';
 import 'map_viewmodel.dart';
 
-class MapView extends StatefulWidget {
+class MapView extends StatelessWidget {
   const MapView({super.key});
 
   @override
-  State<MapView> createState() => _MapViewState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => MapViewModel()..loadStations(),
+      child: const _MapViewBody(),
+    );
+  }
 }
 
-class _MapViewState extends State<MapView> {
-  final _vm = MapViewModel();
+class _MapViewBody extends StatefulWidget {
+  const _MapViewBody();
+
+  @override
+  State<_MapViewBody> createState() => _MapViewBodyState();
+}
+
+class _MapViewBodyState extends State<_MapViewBody> {
   final _mapController = MapController();
   int _currentNavIndex = 0;
 
   static const _center = LatLng(11.5630, 104.9210);
 
-  @override
-  void initState() {
-    super.initState();
-    _vm.addListener(_onViewModelChanged);
-    _vm.loadStations();
-  }
-
-  @override
-  void dispose() {
-    _vm.removeListener(_onViewModelChanged);
-    _vm.dispose();
-    super.dispose();
-  }
-
-  void _onViewModelChanged() => setState(() {});
-
-  List<Marker> _buildMarkers() {
-    return _vm.stations.map((station) {
-      final color = _vm.markerColor(station);
+  List<Marker> _buildMarkers(MapViewModel vm) {
+    return vm.stations.map((station) {
+      final color = vm.markerColor(station);
       return Marker(
         point: LatLng(station.latitude, station.longitude),
         width: 36,
@@ -72,113 +68,122 @@ class _MapViewState extends State<MapView> {
   void _navigateToStation(BikeStation station) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => StationDetailView(station: station),
-      ),
+      MaterialPageRoute(builder: (_) => StationDetailView(station: station)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: const MapOptions(
-              initialCenter: _center,
-              initialZoom: 13.5,
-            ),
+    return Consumer<MapViewModel>(
+      builder: (context, vm, _) {
+        return Scaffold(
+          body: Stack(
             children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.flutter_application_1',
+              FlutterMap(
+                mapController: _mapController,
+                options: const MapOptions(
+                  initialCenter: _center,
+                  initialZoom: 13.5,
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.flutter_application_1',
+                  ),
+                  if (!vm.isLoading && vm.errorMessage == null)
+                    MarkerLayer(markers: _buildMarkers(vm)),
+                ],
               ),
-              if (!_vm.isLoading && _vm.errorMessage == null)
-                MarkerLayer(markers: _buildMarkers()),
+              if (vm.isLoading)
+                const Center(
+                  child: CircularProgressIndicator(color: AppColors.orange),
+                ),
+              if (vm.errorMessage != null)
+                _ErrorBanner(
+                  message: vm.errorMessage!,
+                  onRetry: vm.loadStations,
+                ),
+              if (!vm.isLoading && vm.errorMessage == null)
+                DraggableScrollableSheet(
+                  initialChildSize: 0.32,
+                  minChildSize: 0.12,
+                  maxChildSize: 0.75,
+                  builder: (context, scrollController) {
+                    return Container(
+                      decoration: const BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(20),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 10,
+                            offset: Offset(0, -2),
+                          ),
+                        ],
+                      ),
+                      child: ListView(
+                        controller: scrollController,
+                        padding: EdgeInsets.zero,
+                        children: [
+                          const BottomSheetHandle(),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: AppSpacing.xl,
+                            ),
+                            child: Text(
+                              'Find a Bike',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.orange,
+                              ),
+                            ),
+                          ),
+                          AppSpacing.gapLg,
+                          const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: AppSpacing.xl,
+                            ),
+                            child: Text(
+                              'Nearby Stations',
+                              style: AppTextStyles.bodySm,
+                            ),
+                          ),
+                          AppSpacing.gapSm,
+                          ...vm.stations.map((station) {
+                            return Column(
+                              children: [
+                                StationListTile(
+                                  station: station,
+                                  indicatorColor: vm.markerColor(station),
+                                  onTap: () => _navigateToStation(station),
+                                ),
+                                const Divider(
+                                  height: 1,
+                                  indent: AppSpacing.xl,
+                                  endIndent: AppSpacing.xl,
+                                  color: AppColors.divider,
+                                ),
+                              ],
+                            );
+                          }),
+                          AppSpacing.gapLg,
+                        ],
+                      ),
+                    );
+                  },
+                ),
             ],
           ),
-          if (_vm.isLoading)
-            const Center(
-              child: CircularProgressIndicator(color: AppColors.orange),
-            ),
-          if (_vm.errorMessage != null) _ErrorBanner(
-                message: _vm.errorMessage!,
-                onRetry: _vm.loadStations,
-              ),
-          if (!_vm.isLoading && _vm.errorMessage == null)
-            DraggableScrollableSheet(
-              initialChildSize: 0.32,
-              minChildSize: 0.12,
-              maxChildSize: 0.75,
-              builder: (context, scrollController) {
-                return Container(
-                  decoration: const BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(20)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 10,
-                        offset: Offset(0, -2),
-                      ),
-                    ],
-                  ),
-                  child: ListView(
-                    controller: scrollController,
-                    padding: EdgeInsets.zero,
-                    children: [
-                      const BottomSheetHandle(),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                        child: Text(
-                          'Find a Bike',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.orange,
-                          ),
-                        ),
-                      ),
-                      AppSpacing.gapLg,
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                        child: Text(
-                          'Nearby Stations',
-                          style: AppTextStyles.bodySm,
-                        ),
-                      ),
-                      AppSpacing.gapSm,
-                      ..._vm.stations.map((station) {
-                        return Column(
-                          children: [
-                            StationListTile(
-                              station: station,
-                              indicatorColor: _vm.markerColor(station),
-                              onTap: () => _navigateToStation(station),
-                            ),
-                            const Divider(
-                              height: 1,
-                              indent: AppSpacing.xl,
-                              endIndent: AppSpacing.xl,
-                              color: AppColors.divider,
-                            ),
-                          ],
-                        );
-                      }),
-                      AppSpacing.gapLg,
-                    ],
-                  ),
-                );
-              },
-            ),
-        ],
-      ),
-      bottomNavigationBar: AppBottomNavBar(
-        currentIndex: _currentNavIndex,
-        onTap: _onNavTap,
-      ),
+          bottomNavigationBar: AppBottomNavBar(
+            currentIndex: _currentNavIndex,
+            onTap: _onNavTap,
+          ),
+        );
+      },
     );
   }
 }
@@ -199,17 +204,18 @@ class _ErrorBanner extends StatelessWidget {
           color: AppColors.surface,
           borderRadius: AppSpacing.radiusLg,
           border: Border.all(color: AppColors.divider),
-          boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 10),
-          ],
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.error_outline, color: AppColors.red, size: 40),
             AppSpacing.gapMd,
-            Text(message,
-                textAlign: TextAlign.center, style: AppTextStyles.bodyMd),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodyMd,
+            ),
             AppSpacing.gapLg,
             ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
           ],
