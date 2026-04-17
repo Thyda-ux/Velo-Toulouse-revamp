@@ -13,10 +13,8 @@ class MyPassView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => MyPassViewModel()..load(),
-      child: const _MyPassBody(),
-    );
+    // MyPassViewModel is provided at the app level via ChangeNotifierProvider.value
+    return const _MyPassBody();
   }
 }
 

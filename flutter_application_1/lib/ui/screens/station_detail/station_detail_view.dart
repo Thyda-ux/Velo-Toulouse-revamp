@@ -88,7 +88,7 @@ class _StationDetailBody extends StatelessWidget {
                 child: ListView.separated(
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                   itemCount: station.slots.length,
-                  separatorBuilder: (_, __) => const Divider(
+                  separatorBuilder: (_, _) => const Divider(
                     height: 1,
                     indent: AppSpacing.xl,
                     endIndent: AppSpacing.xl,

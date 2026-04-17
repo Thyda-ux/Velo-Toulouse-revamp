@@ -3,26 +3,20 @@ import '../../../data/repositories/bike_station_repository.dart';
 import '../../../data/repositories/booking_repository.dart';
 import '../../../data/repositories/firebase_bike_station_repository.dart';
 import '../../../data/repositories/firebase_booking_repository.dart';
-import '../../../data/repositories/firebase_user_repository.dart';
-import '../../../data/repositories/user_repository.dart';
 import '../../../models/bike.dart';
 import '../../../models/bike_station.dart';
 import '../../../models/booking.dart';
 import '../../../models/enums.dart';
 import '../../../models/slot.dart';
-import '../../../models/user.dart';
 
 class BookingViewModel extends ChangeNotifier {
   final BikeStation station;
   final Slot slot;
   final Bike bike;
 
-  final UserRepository _userRepo;
   final BookingRepository _bookingRepo;
   final BikeStationRepository _stationRepo;
 
-  AppUser? user;
-  bool isLoading = true;
   bool isSubmitting = false;
   String? errorMessage;
 
@@ -30,24 +24,13 @@ class BookingViewModel extends ChangeNotifier {
     required this.station,
     required this.slot,
     required this.bike,
-    UserRepository? userRepo,
     BookingRepository? bookingRepo,
     BikeStationRepository? stationRepo,
-  })  : _userRepo = userRepo ?? FirebaseUserRepository(),
-        _bookingRepo = bookingRepo ?? FirebaseBookingRepository(),
+  })  : _bookingRepo = bookingRepo ?? FirebaseBookingRepository(),
         _stationRepo = stationRepo ?? FirebaseBikeStationRepository();
 
-  bool get hasActivePlan => user?.hasActivePlan() ?? false;
-
-  Future<void> loadUser() async {
-    user = await _userRepo.getCurrentUser();
-    isLoading = false;
-    notifyListeners();
-  }
-
-  Future<String?> confirmBooking() async {
-    if (!hasActivePlan || user == null) return null;
-
+  /// Confirms the booking using the [userId] from the shared MyPassViewModel.
+  Future<String?> confirmBooking(String userId) async {
     isSubmitting = true;
     errorMessage = null;
     notifyListeners();
@@ -59,7 +42,7 @@ class BookingViewModel extends ChangeNotifier {
       final booking = Booking(
         id: '',
         orderId: orderId,
-        userId: user!.id,
+        userId: userId,
         bikeId: bike.id,
         stationId: station.id,
         slotId: slot.id,

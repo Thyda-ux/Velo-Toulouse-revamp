@@ -19,10 +19,8 @@ class MapView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => MapViewModel()..loadStations(),
-      child: const _MapViewBody(),
-    );
+    // MapViewModel is provided at the app level via ChangeNotifierProvider.value
+    return const _MapViewBody();
   }
 }
 

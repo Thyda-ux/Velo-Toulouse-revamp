@@ -8,6 +8,7 @@ import '../../../models/bike_station.dart';
 import '../../../models/enums.dart';
 import '../../../models/slot.dart';
 import '../../../models/user.dart';
+import '../my_pass/my_pass_viewmodel.dart';
 import '../pass_selection/pass_selection_view.dart';
 import 'booking_viewmodel.dart';
 
@@ -27,8 +28,7 @@ class BookingView extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) =>
-          BookingViewModel(station: station, slot: slot, bike: bike)
-            ..loadUser(),
+          BookingViewModel(station: station, slot: slot, bike: bike),
       child: _BookingBody(station: station, slot: slot, bike: bike),
     );
   }
@@ -45,8 +45,15 @@ class _BookingBody extends StatelessWidget {
     required this.bike,
   });
 
-  Future<void> _onConfirm(BuildContext context, BookingViewModel vm) async {
-    final orderId = await vm.confirmBooking();
+  Future<void> _onConfirm(
+    BuildContext context,
+    BookingViewModel vm,
+    MyPassViewModel passVm,
+  ) async {
+    final userId = passVm.user?.id;
+    if (userId == null) return;
+
+    final orderId = await vm.confirmBooking(userId);
     if (!context.mounted) return;
 
     if (orderId != null) {
@@ -68,21 +75,28 @@ class _BookingBody extends StatelessWidget {
     }
   }
 
-  Future<void> _onBuyPass(BuildContext context, BookingViewModel vm) async {
-    if (vm.user == null) return;
+  Future<void> _onBuyPass(BuildContext context, MyPassViewModel passVm) async {
+    if (passVm.user == null) return;
     final purchased = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => PassSelectionView(userId: vm.user!.id)),
+      MaterialPageRoute(
+        builder: (_) => PassSelectionView(userId: passVm.user!.id),
+      ),
     );
     if (purchased == true) {
-      await vm.loadUser();
+      await passVm.load();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final passVm = context.watch<MyPassViewModel>();
+
     return Consumer<BookingViewModel>(
       builder: (context, vm, _) {
+        final hasActivePlan = passVm.hasActivePlan;
+        final user = passVm.user;
+
         return Scaffold(
           backgroundColor: AppColors.surface,
           appBar: AppBar(
@@ -100,7 +114,7 @@ class _BookingBody extends StatelessWidget {
             ),
             titleSpacing: 0,
           ),
-          body: vm.isLoading
+          body: passVm.isLoading
               ? const Center(
                   child: CircularProgressIndicator(color: AppColors.orange),
                 )
@@ -146,11 +160,11 @@ class _BookingBody extends StatelessWidget {
                           AppSpacing.gapXl,
                           const Text('Your Pass', style: AppTextStyles.titleMd),
                           AppSpacing.gapMd,
-                          if (vm.hasActivePlan)
-                            _PlanActiveCard(user: vm.user!)
+                          if (hasActivePlan)
+                            _PlanActiveCard(user: user!)
                           else
                             _NoPlanCard(
-                              onBuyPass: () => _onBuyPass(context, vm),
+                              onBuyPass: () => _onBuyPass(context, passVm),
                             ),
                         ],
                       ),
@@ -163,8 +177,8 @@ class _BookingBody extends StatelessWidget {
                         AppSpacing.xl,
                       ),
                       child: ElevatedButton(
-                        onPressed: vm.hasActivePlan && !vm.isSubmitting
-                            ? () => _onConfirm(context, vm)
+                        onPressed: hasActivePlan && !vm.isSubmitting
+                            ? () => _onConfirm(context, vm, passVm)
                             : null,
                         child: vm.isSubmitting
                             ? const SizedBox(
@@ -176,7 +190,7 @@ class _BookingBody extends StatelessWidget {
                                 ),
                               )
                             : Text(
-                                vm.hasActivePlan
+                                hasActivePlan
                                     ? 'Confirm Booking'
                                     : 'Active Pass Required',
                               ),
