@@ -1,4 +1,5 @@
 import '../../models/booking.dart';
+import '../../models/slot.dart';
 import 'booking_repository.dart';
 
 class MockBookingRepository implements BookingRepository {
@@ -6,7 +7,21 @@ class MockBookingRepository implements BookingRepository {
   int _sequence = 0;
 
   @override
-  Future<String> createBooking(Booking booking) async {
+  Future<Booking?> getBooking(String bookingId) async => _store[bookingId];
+
+  @override
+  Future<String> createBookingWithSlotUpdate(
+    Booking booking,
+    String stationId,
+    Slot slot,
+  ) async {
+    // In mock, simulate the transactional behavior by validating the slot has a bike
+    if (slot.bike == null) {
+      throw Exception(
+          'Slot is empty - bike has already been booked by another user');
+    }
+
+    // Create the booking
     final id = 'mock-bk-${++_sequence}';
     _store[id] = Booking(
       id: id,
@@ -20,7 +35,4 @@ class MockBookingRepository implements BookingRepository {
     );
     return id;
   }
-
-  @override
-  Future<Booking?> getBooking(String bookingId) async => _store[bookingId];
 }
